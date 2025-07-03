@@ -52,8 +52,8 @@ async function scrapeLazadaPage(url) {
 
         const html = await response.text();
 
-        // Log a snippet of the fetched HTML for debugging purposes (remove in production)
-        // console.log("Fetched HTML snippet:", html.substring(0, 500)); 
+        // Log a snippet of the fetched HTML for debugging purposes
+        console.log("Fetched HTML snippet:", html.substring(0, 500)); 
 
         // 2. Load the HTML into Cheerio for parsing
         const $ = cheerio.load(html);
@@ -62,14 +62,16 @@ async function scrapeLazadaPage(url) {
         let productPrice = null;
 
         // --- Product Name Extraction ---
-        // Prioritize more specific and common selectors.
+        // Prioritize more specific and common selectors. Added more general ones.
         const productNameSelectors = [
             'h1.pdp-mod-product-title',
             'div.pdp-product-title__text',
             'span.pdp-product-title__item',
             'meta[property="og:title"]', // Fallback to Open Graph meta tag
-            'h1[data-spm="product_title"]', // Another common pattern
-            'div.product-title' // General title class
+            'h1[data-spm="product_title"]',
+            'div.product-title',
+            'h1[itemprop="name"]', // Common itemprop for product name
+            'h1.product-name' // Another general class
         ];
 
         for (const selector of productNameSelectors) {
@@ -78,8 +80,6 @@ async function scrapeLazadaPage(url) {
                 if (selector.startsWith('meta')) {
                     const ogContent = element.attr('content');
                     if (ogContent) {
-                        // Extracting only the product name part from the og:title
-                        // Example: "Product Name - Brand - Lazada VN" -> "Product Name"
                         productName = ogContent.split(' - ')[0].trim();
                     }
                 } else {
@@ -90,7 +90,7 @@ async function scrapeLazadaPage(url) {
         }
 
         // --- Product Price Extraction ---
-        // Prioritize the new selectors you provided, then other common ones.
+        // Prioritize the new selectors you provided, then other common ones. Added more general ones.
         const priceSelectors = [
             '.pdp-product-price', // Specific class provided by user
             '.notranslate.pdp-price.pdp-price_type_normal.pdp-price_color_orange.pdp-price_size_xl', // Specific class provided by user
@@ -98,8 +98,11 @@ async function scrapeLazadaPage(url) {
             'div.pdp-price__main-price span',
             'span.pdp-price__text',
             '.pdp-price',
-            '.current-price', // Common price class
-            'div.price-block span.price' // Another common pattern for price blocks
+            '.current-price',
+            'div.price-block span.price',
+            'span[itemprop="price"]', // Common itemprop for price
+            'span.product-price', // Another general class
+            'div.product-info-price span' // More general price container
         ];
 
         for (const selector of priceSelectors) {
