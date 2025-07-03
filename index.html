@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lazada Price Tracker Client</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: "Inter", sans-serif;
+            background-color: #f0f2f5;
+        }
+        /* Custom scrollbar for textarea */
+        textarea::-webkit-scrollbar {
+            width: 8px;
+        }
+        textarea::-webkit-scrollbar-track {
+            background: #e0e0e0;
+            border-radius: 10px;
+        }
+        textarea::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        textarea::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
+    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-2xl">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">Lazada Price Tracker Client</h1>
+
+        <p class="text-gray-600 mb-6 text-center">
+            Enter the full Lazada product page URL below. The price will be fetched by the server.
+        </p>
+
+        <div class="mb-4">
+            <label for="productUrlInput" class="block text-gray-700 text-sm font-bold mb-2">
+                Lazada Product URL:
+            </label>
+            <input type="url" id="productUrlInput"
+                   class="shadow appearance-none border rounded-xl w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                   placeholder="e.g., https://www.lazada.vn/products/..."
+                   value="https://www.lazada.vn/products/nuoc-rua-binh-sua-va-phu-kien-pigeon-goc-thuc-vat-450ml500ml-i2618371420-s12771450735.html?">
+        </div>
+
+        <div class="flex flex-col sm:flex-row gap-4 mb-6">
+            <button id="fetchButton"
+                    class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-xl focus:outline-none focus:shadow-outline transition duration-200 ease-in-out transform hover:scale-105 shadow-md">
+                Fetch Price
+            </button>
+            <button id="clearButton"
+                    class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-3 px-6 rounded-xl focus:outline-none focus:shadow-outline transition duration-200 ease-in-out transform hover:scale-105 shadow-md">
+                Clear
+            </button>
+        </div>
+
+        <div id="loadingIndicator" class="hidden text-center text-blue-600 font-semibold mb-4">
+            Fetching price...
+        </div>
+
+        <div id="results" class="bg-gray-50 p-6 rounded-xl border border-gray-200 hidden">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Extracted Information:</h2>
+            <p class="text-gray-700 mb-2">
+                <strong class="text-blue-600">Product:</strong> <span id="productName"></span>
+            </p>
+            <p class="text-gray-700 mb-2">
+                <strong class="text-blue-600">Price:</strong> <span id="productPrice" class="font-bold text-lg text-green-600"></span>
+            </p>
+            <p class="text-gray-700 mb-4">
+                <strong class="text-blue-600">Date:</strong> <span id="extractionDate"></span>
+            </p>
+
+            <div class="flex flex-col sm:flex-row gap-4">
+                <button id="copyButton"
+                        class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-xl focus:outline-none focus:shadow-outline transition duration-200 ease-in-out transform hover:scale-105 shadow-md">
+                    Copy Price & Date
+                </button>
+                <button id="downloadCsvButton"
+                        class="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-xl focus:outline-none focus:shadow-outline transition duration-200 ease-in-out transform hover:scale-105 shadow-md">
+                    Download as CSV
+                </button>
+            </div>
+        </div>
+
+        <div id="messageBox" class="mt-6 p-4 rounded-xl text-center hidden" role="alert"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const productUrlInput = document.getElementById('productUrlInput');
+            const fetchButton = document.getElementById('fetchButton');
+            const clearButton = document.getElementById('clearButton');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const resultsDiv = document.getElementById('results');
+            const productNameSpan = document.getElementById('productName');
+            const productPriceSpan = document.getElementById('productPrice');
+            const extractionDateSpan = document.getElementById('extractionDate');
+            const copyButton = document.getElementById('copyButton');
+            const downloadCsvButton = document.getElementById('downloadCsvButton');
+            const messageBox = document.getElementById('messageBox');
+
+            // IMPORTANT: Replace this with the URL of your deployed Node.js server!
+            // If running locally, it would be 'http://localhost:3000'
+            const SERVER_URL = 'https://laz-lmy5.onrender.com/'; // <<<--- CHANGE THIS AFTER DEPLOYMENT
+
+            /**
+             * Displays a message in the message box.
+             * @param {string} message - The message to display.
+             * @param {string} type - The type of message ('success', 'error', 'info').
+             */
+            function showMessage(message, type) {
+                messageBox.textContent = message;
+                messageBox.className = 'mt-6 p-4 rounded-xl text-center'; // Reset classes
+                if (type === 'success') {
+                    messageBox.classList.add('bg-green-100', 'text-green-800');
+                } else if (type === 'error') {
+                    messageBox.classList.add('bg-red-100', 'text-red-800');
+                } else { // info
+                    messageBox.classList.add('bg-blue-100', 'text-blue-800');
+                }
+                messageBox.classList.remove('hidden');
+            }
+
+            /**
+             * Hides the message box.
+             */
+            function hideMessageBox() {
+                messageBox.classList.add('hidden');
+            }
+
+            /**
+             * Handles fetching data from the server when the button is clicked.
+             */
+            fetchButton.addEventListener('click', async () => {
+                hideMessageBox();
+                resultsDiv.classList.add('hidden');
+                loadingIndicator.classList.remove('hidden');
+
+                const url = productUrlInput.value.trim();
+
+                if (!url) {
+                    showMessage('Please enter a Lazada product URL.', 'error');
+                    loadingIndicator.classList.add('hidden');
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`${SERVER_URL}/scrape`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ url: url }),
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        if (data.productName && data.productPrice) {
+                            const now = new Date();
+                            const dateString = now.toLocaleDateString('en-GB');
+                            const timeString = now.toLocaleTimeString('en-GB');
+
+                            productNameSpan.textContent = data.productName;
+                            productPriceSpan.textContent = `${data.productPrice} ₫`;
+                            extractionDateSpan.textContent = `${dateString} ${timeString}`;
+
+                            resultsDiv.classList.remove('hidden');
+                            showMessage('Price fetched successfully!', 'success');
+                        } else {
+                            showMessage('Server could not find product name or price. Check URL or server logs.', 'error');
+                        }
+                    } else {
+                        showMessage(`Error from server: ${data.error || 'Unknown error'}`, 'error');
+                    }
+                } catch (error) {
+                    console.error('Error fetching data:', error);
+                    showMessage(`Failed to connect to server or scrape: ${error.message}. Make sure the server is running and the URL is correct.`, 'error');
+                } finally {
+                    loadingIndicator.classList.add('hidden');
+                }
+            });
+
+            /**
+             * Clears all input and results.
+             */
+            clearButton.addEventListener('click', () => {
+                productUrlInput.value = '';
+                productNameSpan.textContent = '';
+                productPriceSpan.textContent = '';
+                extractionDateSpan.textContent = '';
+                resultsDiv.classList.add('hidden');
+                hideMessageBox();
+                loadingIndicator.classList.add('hidden');
+                showMessage('Cleared!', 'info');
+            });
+
+            /**
+             * Copies extracted data to clipboard.
+             */
+            copyButton.addEventListener('click', () => {
+                const productName = productNameSpan.textContent;
+                const price = productPriceSpan.textContent;
+                const date = extractionDateSpan.textContent;
+
+                if (productName && price && date && productName !== 'N/A') {
+                    const textToCopy = `Product: ${productName}\nPrice: ${price}\nDate: ${date}`;
+                    const textArea = document.createElement("textarea");
+                    textArea.value = textToCopy;
+                    textArea.style.position = "fixed";
+                    textArea.style.left = "-9999px";
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    try {
+                        document.execCommand('copy');
+                        showMessage('Copied to clipboard!', 'success');
+                    } catch (err) {
+                        console.error('Failed to copy: ', err);
+                        showMessage('Failed to copy to clipboard. Please try manually.', 'error');
+                    } finally {
+                        document.body.removeChild(textArea);
+                    }
+                } else {
+                    showMessage('No data to copy. Please fetch price first.', 'error');
+                }
+            });
+
+            /**
+             * Downloads extracted data as a CSV file.
+             */
+            downloadCsvButton.addEventListener('click', () => {
+                const productName = productNameSpan.textContent;
+                const price = productPriceSpan.textContent.replace(' ₫', '');
+                const date = extractionDateSpan.textContent;
+
+                if (productName && price && date && productName !== 'N/A') {
+                    const headers = "Product Name,Price,Date\n";
+                    const csvContent = `${headers}"${productName.replace(/"/g, '""')}","${price}","${date}"\n`;
+
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement('a');
+                    if (link.download !== undefined) {
+                        const url = URL.createObjectURL(blob);
+                        link.setAttribute('href', url);
+                        link.setAttribute('download', `lazada_price_${new Date().toISOString().slice(0, 10)}.csv`);
+                        link.style.visibility = 'hidden';
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        showMessage('CSV downloaded!', 'success');
+                    } else {
+                        showMessage('Your browser does not support downloading files directly. Please copy the data manually.', 'error');
+                    }
+                } else {
+                    showMessage('No data to download. Please fetch price first.', 'error');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
