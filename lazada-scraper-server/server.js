@@ -35,6 +35,9 @@ async function scrapeLazadaPage(url) {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36',
                 'Accept-Language': 'en-US,en;q=0.9',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1',
+                'Cache-Control': 'max-age=0'
             }
         });
 
@@ -49,6 +52,9 @@ async function scrapeLazadaPage(url) {
 
         const html = await response.text();
 
+        // Log a snippet of the fetched HTML for debugging purposes (remove in production)
+        // console.log("Fetched HTML snippet:", html.substring(0, 500)); 
+
         // 2. Load the HTML into Cheerio for parsing
         const $ = cheerio.load(html);
 
@@ -56,12 +62,14 @@ async function scrapeLazadaPage(url) {
         let productPrice = null;
 
         // --- Product Name Extraction ---
-        // Try common Lazada product title selectors. Added more robust selectors.
+        // Prioritize more specific and common selectors.
         const productNameSelectors = [
             'h1.pdp-mod-product-title',
             'div.pdp-product-title__text',
+            'span.pdp-product-title__item',
             'meta[property="og:title"]', // Fallback to Open Graph meta tag
-            'span.pdp-product-title__item' // Another potential selector
+            'h1[data-spm="product_title"]', // Another common pattern
+            'div.product-title' // General title class
         ];
 
         for (const selector of productNameSelectors) {
@@ -82,15 +90,16 @@ async function scrapeLazadaPage(url) {
         }
 
         // --- Product Price Extraction ---
-        // Added the new selectors you provided at the top for higher priority.
+        // Prioritize the new selectors you provided, then other common ones.
         const priceSelectors = [
-            '.pdp-product-price', // New selector
-            '.notranslate.pdp-price.pdp-price_type_normal.pdp-price_color_orange.pdp-price_size_xl', // New selector
+            '.pdp-product-price', // Specific class provided by user
+            '.notranslate.pdp-price.pdp-price_type_normal.pdp-price_color_orange.pdp-price_size_xl', // Specific class provided by user
             'span.pdp-price_type_normal',
             'div.pdp-price__main-price span',
             'span.pdp-price__text',
             '.pdp-price',
-            '.current-price'
+            '.current-price', // Common price class
+            'div.price-block span.price' // Another common pattern for price blocks
         ];
 
         for (const selector of priceSelectors) {
