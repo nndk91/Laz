@@ -11,7 +11,7 @@ import * as cheerio from 'cheerio';
 import cors from 'cors'; // Import the cors middleware
 
 const app = express();
-const PORT = process.env.PORT || 3000; // Use environment variable for port or default to 3000
+const PORT = process.env.PORT || 10000; // Use environment variable for port or default to 10000 (matching Render logs)
 
 // Middleware to enable CORS for all origins.
 // In a production environment, you might want to restrict this to specific origins for security.
@@ -29,7 +29,14 @@ app.use(express.json());
 async function scrapeLazadaPage(url) {
     try {
         // 1. Fetch the HTML content of the page
-        const response = await fetch(url);
+        // Add headers to mimic a browser request, which can help bypass some basic bot detection
+        const response = await fetch(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
+            }
+        });
 
         // Check if the request was successful
         if (!response.ok) {
@@ -49,43 +56,52 @@ async function scrapeLazadaPage(url) {
         let productPrice = null;
 
         // --- Product Name Extraction ---
-        // Try common Lazada product title selectors.
-        // Lazada's HTML structure can change, so multiple selectors are attempted.
-        productName = $('h1.pdp-mod-product-title').text().trim();
-        if (!productName) {
-            productName = $('div.pdp-product-title__text').text().trim();
-        }
-        // Fallback to Open Graph meta tag if direct selectors fail
-        if (!productName) {
-            const ogTitle = $('meta[property="og:title"]').attr('content');
-            if (ogTitle) {
-                // Extracting only the product name part from the og:title
-                // Example: "Product Name - Brand - Lazada VN" -> "Product Name"
-                productName = ogTitle.split(' - ')[0].trim();
+        // Try common Lazada product title selectors. Added more robust selectors.
+        const productNameSelectors = [
+            'h1.pdp-mod-product-title',
+            'div.pdp-product-title__text',
+            'meta[property="og:title"]', // Fallback to Open Graph meta tag
+            'span.pdp-product-title__item' // Another potential selector
+        ];
+
+        for (const selector of productNameSelectors) {
+            const element = $(selector);
+            if (element.length > 0) {
+                if (selector.startsWith('meta')) {
+                    const ogContent = element.attr('content');
+                    if (ogContent) {
+                        // Extracting only the product name part from the og:title
+                        // Example: "Product Name - Brand - Lazada VN" -> "Product Name"
+                        productName = ogContent.split(' - ')[0].trim();
+                    }
+                } else {
+                    productName = element.text().trim();
+                }
+                if (productName) break; // Found a name, stop searching
             }
         }
 
         // --- Product Price Extraction ---
-        // Try common Lazada price selectors.
-        // Similar to product name, multiple selectors for robustness.
-        let priceText = null;
-        priceText = $('span.pdp-price_type_normal').text().trim();
-        if (!priceText) {
-            priceText = $('div.pdp-price__main-price span').text().trim();
-        }
-        if (!priceText) {
-            priceText = $('span.pdp-price__text').text().trim();
-        }
-        if (!priceText) {
-            priceText = $('.pdp-price').text().trim();
-        }
+        // Try common Lazada price selectors. Added more robust selectors.
+        const priceSelectors = [
+            'span.pdp-price_type_normal',
+            'div.pdp-price__main-price span',
+            'span.pdp-price__text',
+            '.pdp-price',
+            '.current-price' // Another potential selector
+        ];
 
-        if (priceText) {
-            // Clean the price text: remove currency symbols, commas, spaces, and non-numeric characters
-            // '₫' (Vietnamese dong symbol), 'đ' (another common dong representation)
-            productPrice = priceText.replace(/[₫đ,.\s]/g, '');
-            // Ensure it's purely numeric, in case other text remains
-            productPrice = productPrice.match(/\d+/g)?.join('') || ''; // Match only digits
+        for (const selector of priceSelectors) {
+            const element = $(selector);
+            if (element.length > 0) {
+                let text = element.text().trim();
+                // Clean the price text: remove currency symbols, commas, spaces, and non-numeric characters
+                // '₫' (Vietnamese dong symbol), 'đ' (another common dong representation)
+                text = text.replace(/[₫đ,.\s]/g, '');
+                // Ensure it's purely numeric, in case other text remains
+                productPrice = text.match(/\d+/g)?.join('') || ''; // Match only digits
+                if (productPrice) break; // Found a price, stop searching
+            }
         }
 
         // Return the extracted data
