@@ -82,13 +82,15 @@ async function scrapeLazadaPage(url) {
         }
 
         // --- Product Price Extraction ---
-        // Try common Lazada price selectors. Added more robust selectors.
+        // Added the new selectors you provided at the top for higher priority.
         const priceSelectors = [
+            '.pdp-product-price', // New selector
+            '.notranslate.pdp-price.pdp-price_type_normal.pdp-price_color_orange.pdp-price_size_xl', // New selector
             'span.pdp-price_type_normal',
             'div.pdp-price__main-price span',
             'span.pdp-price__text',
             '.pdp-price',
-            '.current-price' // Another potential selector
+            '.current-price'
         ];
 
         for (const selector of priceSelectors) {
