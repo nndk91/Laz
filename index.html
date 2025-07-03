@@ -103,8 +103,8 @@
             const messageBox = document.getElementById('messageBox');
 
             // IMPORTANT: Replace this with the URL of your deployed Node.js server!
-            // If running locally, it would be 'http://localhost:3000'
-            const SERVER_URL = 'https://laz-lmy5.onrender.com/'; // <<<--- CHANGE THIS AFTER DEPLOYMENT
+            // Ensure there is NO trailing slash here, as '/scrape' will be appended.
+            const SERVER_URL = 'https://laz-lmy5.onrender.com'; // <<<--- UPDATED URL
 
             /**
              * Displays a message in the message box.
@@ -148,6 +148,7 @@
                 }
 
                 try {
+                    // This will correctly form the URL as https://laz-lmy5.onrender.com/scrape
                     const response = await fetch(`${SERVER_URL}/scrape`, {
                         method: 'POST',
                         headers: {
